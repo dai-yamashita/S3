@@ -80,88 +80,105 @@ describe('Bucket GET (object listing)', () => {
         }
 
         matrix.generate(['Delimiter', 'Prefix', 'MaxKeys', 'EncodingType',
-        'Bucket'], (matrix, done) => {
+        'Bucket'], matrix => {
             const statusMsg = expectedStatus ? "fail" : "succeed";
 
             describe (`should ${statusMsg}`, () => {
                 const bucketUtil = new BucketUtility('default');
 
                 delete matrix.params.auth;
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    const maxNumberOfKeys = 1200 < matrix.params.MaxKeys ? 1200 : matrix.params.MaxKeys;
-                    if (matrix.params.Delimiter === undefined
-                        && matrix.params.Prefix === undefined && matrix.params.MaxKeys !== undefined) {
-                            assert.equal(data.Contents.length <= maxNumberOfKeys, true);
-                        }
-                        assert.equal(err === null, true);
+
+                it(matrix.toString(), (done) => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                        const maxNumberOfKeys = 1200 < matrix.params.MaxKeys ? 1200 : matrix.params.MaxKeys;
+                        if (matrix.params.Delimiter === undefined
+                            && matrix.params.Prefix === undefined && matrix.params.MaxKeys !== undefined) {
+                                assert.equal(data.Contents.length <= maxNumberOfKeys, true);
+                            }
+                            assert.equal(err === null, true);
+                            done();
+                        });
+                    });
+                });
+            }).if({Bucket: [undefined, 'invalid-bucket-name']}, matrix => {
+                const bucketUtil = new BucketUtility('default');
+
+                delete matrix.params.auth;
+                it("invalid-bucket-name" + matrix.toString(), (done) => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                        assert.equal(err !== null, true);
                         done();
                     });
                 });
-            }).if({Bucket: [undefined, 'invalid-bucket-name']}, (matrix, done) => {
+            }).if({MaxKeys: [-1, "string"]}, matrix => {
                 const bucketUtil = new BucketUtility('default');
 
                 delete matrix.params.auth;
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    assert.equal(err !== null, true);
-                    done();
-                });
-            }).if({MaxKeys: [-1, "string"]}, (matrix, done) => {
-                const bucketUtil = new BucketUtility('default');
-
-                delete matrix.params.auth;
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    assert.equal(err !== null, true);
-                    done();
+                it("invalid max key " + matrix.toString(), done => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                        assert.equal(err !== null, true);
+                        done();
+                    });
                 });
             }).if({Bucket: ['test-get-bucket'], EncodingType: ['url'],
             MaxKeys: [1000, 42, 1001, 1], Delimiter: ['/'], Prefix: ['/validPrefix/ThatIsPresent/InTheTest']},
-            (matrix, done) => {
+            matrix => {
                 const bucketUtil = new BucketUtility('default');
 
                 delete matrix.params.auth;
 
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    assert.equal(err === null, true);
-                    assert.equal(data.Contents !== null && data.Contents[0].Key.indexOf("%01") !== -1, true);
+                it("url " + matrix.toString(), done => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                        assert.equal(err === null, true);
+                        assert.equal(data.Contents !== null && data.Contents[0].Key.indexOf("%01") !== -1, true);
+                    });
                 });
 
             }).if({Bucket: ['test-get-bucket'],
             MaxKeys: [1000, 42, 1001, 1], Delimiter: ['|'], Prefix: ['|validPrefix|ThatIsPresent|InTheTest']},
-            (matrix, done) => {
+            matrix => {
                 const bucketUtil = new BucketUtility('default');
                 const maxNumberOfKeys = matrix.params.MaxKeys < 250 ? 250 : matrix.params.MaxKeys;
                 delete matrix.params.auth;
 
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    assert.equal(err === null, true);
-                    assert.equal(data.Contents.length <= maxNumberOfKeys, true);
+                it("custom delimiter " + matrix.toString(), done => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                        assert.equal(err === null, true);
+                        assert.equal(data.Contents.length <= maxNumberOfKeys, true);
+                    });
                 });
 
             }).if({Bucket: ['test-get-bucket'],
+            Delimiter: ['/'],
             Prefix: ['/validPrefix/ThatIsNot/InTheSet', 'InvalidPrefix',
-            '/ThatIsPresent/validPrefix/InTheTest']}, (matrix, done) => {
+            '/ThatIsPresent/validPrefix/InTheTest']}, matrix => {
                 const bucketUtil = new BucketUtility('default');
 
                 delete matrix.params.auth;
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    assert.equal(err === null, true);
-                    assert.equal(data.Contents.length === 0, true);
-                    done();
+                it("Invalid prefix " + matrix.toString(), done => {
+                    bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+
+                        assert.equal(err === null, true);
+                        assert.equal(data.Contants.length === null
+                            || data.Contents.length === 0, true);
+                            done();
+                        });
+                    });
+                }).if({Bucket: ['test-get-bucket'], auth: ['v4']}, matrix => {
+
+                    const cfg = {
+                        signatureVersion: 'v4',
+                    };
+
+                    const bucketUtil = new BucketUtility('default', cfg);
+
+                    delete matrix.params.auth;
+
+                    it("V4", (done) => {
+                        bucketUtil.s3.listObjects(matrix.params, (err, data) => {
+                            done();
+                        });
+                    });
                 });
-            }).if({Bucket: ['test-get-bucket'], auth: ['v4']}, (matrix, done) => {
-
-                const cfg = {
-                    signatureVersion: 'v4',
-                };
-
-                const bucketUtil = new BucketUtility('default', cfg);
-
-                delete matrix.params.auth;
-
-                bucketUtil.s3.listObjects(matrix.params, (err, data) => {
-                    done();
-                });
-            });
-            done();
-        }).execute();
-    });
+            }).execute();
+        });
